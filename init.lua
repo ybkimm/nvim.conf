@@ -4,6 +4,13 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+-- [[ Configure Copilot ]]
+vim.keymap.set('i', '<S-Tab>', 'copilot#Accept("\\<CR>")', {
+  expr = true,
+  replace_keycodes = false
+})
+vim.g.copilot_no_tab_map = true
+
 -- Install package manager
 --    https://github.com/folke/lazy.nvim
 --    `:help lazy.nvim.txt` for more info
@@ -133,8 +140,12 @@ require('lazy').setup({
     -- See `:help indent_blankline.txt`
     config = function()
       require('ibl').setup {
-        char = '┊',
-        show_trailing_blankline_indent = false,
+        indent = {
+          char = '┊',
+        },
+        whitespace = {
+          remove_blankline_trail = false,
+        },
       }
     end,
   },
@@ -228,6 +239,9 @@ vim.o.completeopt = 'menuone,noselect'
 -- NOTE: You should make sure your terminal supports this
 vim.o.termguicolors = true
 
+-- Set scrolloff to 10 lines
+vim.o.scrolloff = 10
+
 -- [[ Basic Keymaps ]]
 
 -- Keymaps for better default experience
@@ -238,8 +252,21 @@ vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
 vim.keymap.set('n', 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })
 vim.keymap.set('n', 'j', "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
 
+-- Remap for dealing with word wrap
+vim.keymap.set('n', 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, silent = true })
+vim.keymap.set('n', 'j', "v:count == 0 ? 'gj' : 'j'", { expr = true, silent = true })
+
+-- Navigation between panes
+--vim.keymap.set({ 'n', 'i', 'v' }, '<C-h>', '<C-o>:TmuxNavigateLeft<return>', { silent = true })
+--vim.keymap.set({ 'n', 'i', 'v' }, '<C-j>', '<C-o>:TmuxNavigateDown<return>', { silent = true })
+--vim.keymap.set({ 'n', 'i', 'v' }, '<C-k>', '<C-o>:TmuxNavigateUp<return>', { silent = true })
+--vim.keymap.set({ 'n', 'i', 'v' }, '<C-l>', '<C-o>:TmuxNavigateRight<return>', { silent = true })
+
+-- LLMSuggestion
+vim.keymap.set('n', '<leader>ls', ':LLMSuggestion<return>', { silent = true, desc = '[L]LM [S]uggestion'})
+
 -- [[ Configure Neotree]]
-vim.keymap.set('n', '<leader>b', ":Neotree reveal float<return>", { silent = true })
+vim.keymap.set('n', '<leader>b', ":Neotree reveal float<return>", { silent = true, desc = '[b] Open file browser' })
 
 -- [[ Highlight on yank ]]
 -- See `:help vim.highlight.on_yank()`
@@ -387,8 +414,8 @@ local on_attach = function(_, bufnr)
   nmap('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
 
   -- See `:help K` for why this keymap
-  nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
-  nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
+  nmap('<leader>k', vim.lsp.buf.hover, 'Hover Documentation')
+  --nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
 
   -- Lesser used LSP functionality
   nmap('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
@@ -413,13 +440,12 @@ end
 --  If you want to override the default filetypes that your language server will attach to you can
 --  define the property 'filetypes' to the map in question.
 local servers = {
-  -- clangd = {},
-  -- gopls = {},
   -- pyright = {},
   -- rust_analyzer = {},
   -- tsserver = {},
   -- html = { filetypes = { 'html', 'twig', 'hbs'} },
 
+  gopls = {},
   lua_ls = {
     Lua = {
       workspace = { checkThirdParty = false },
@@ -453,6 +479,32 @@ mason_lspconfig.setup_handlers {
   end
 }
 
+
+-- [[ Custom LSP Configurations ]]
+local lspconfig = require 'lspconfig'
+
+-- C++ (ccls)
+lspconfig.ccls.setup {
+  init_options = {
+    index = {
+      threads = 0;
+    },
+    clang = {
+      excludeArgs = { "-frounding-math" },
+    },
+  },
+}
+
+-- V (vls)
+lspconfig.vls.setup {}
+
+vim.api.nvim_create_autocmd({'BufNewFile', 'BufRead'}, {
+  pattern = '*.v',
+  callback = function()
+    vim.bo.filetype = 'vlang'
+  end,
+})
+
 -- [[ Configure nvim-cmp ]]
 -- See `:help cmp`
 local cmp = require 'cmp'
@@ -466,6 +518,7 @@ cmp.setup {
       luasnip.lsp_expand(args.body)
     end,
   },
+  preselect = cmp.PreselectMode.None,
   mapping = cmp.mapping.preset.insert {
     ['<C-n>'] = cmp.mapping.select_next_item(),
     ['<C-p>'] = cmp.mapping.select_prev_item(),
@@ -474,32 +527,42 @@ cmp.setup {
     ['<C-Space>'] = cmp.mapping.complete {},
     ['<CR>'] = cmp.mapping.confirm {
       behavior = cmp.ConfirmBehavior.Replace,
-      select = true,
+      select = false,
     },
-    ['<Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_next_item()
-      elseif luasnip.expand_or_locally_jumpable() then
-        luasnip.expand_or_jump()
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
-    ['<S-Tab>'] = cmp.mapping(function(fallback)
-      if cmp.visible() then
-        cmp.select_prev_item()
-      elseif luasnip.locally_jumpable(-1) then
-        luasnip.jump(-1)
-      else
-        fallback()
-      end
-    end, { 'i', 's' }),
+    -- ['<Tab>'] = cmp.mapping(function(fallback)
+    --   if cmp.visible() then
+    --     cmp.select_next_item()
+    --   elseif luasnip.expand_or_locally_jumpable() then
+    --     luasnip.expand_or_jump()
+    --   else
+    --     fallback()
+    --   end
+    -- end, { 'i', 's' }),
+    -- ['<S-Tab>'] = cmp.mapping(function(fallback)
+    --   if cmp.visible() then
+    --     cmp.select_prev_item()
+    --   elseif luasnip.locally_jumpable(-1) then
+    --     luasnip.jump(-1)
+    --   else
+    --     fallback()
+    --   end
+    -- end, { 'i', 's' }),
   },
   sources = {
     { name = 'nvim_lsp' },
     { name = 'luasnip' },
   },
 }
+
+-- [[ Configure go.nvim ]]
+local format_sync_grp = vim.api.nvim_create_augroup("GoFormat", {})
+vim.api.nvim_create_autocmd("BufWritePre", {
+  pattern = "*.go",
+  callback = function()
+   require('go.format').goimport()
+  end,
+  group = format_sync_grp,
+})
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et

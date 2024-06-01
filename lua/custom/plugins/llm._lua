@@ -1,0 +1,25 @@
+return {
+  'ybkimm/llm.nvim',
+  branch = 'ybkimm/feat/keymap-default-behaviour',
+  opts = {
+    lsp = {
+      bin_path = "/usr/local/bin/llm-ls"
+    },
+    tokens_to_clear = { "<EOT>" },
+    fim = {
+      enabled = true,
+      prefix = "<PRE> ",
+      middle = " <MID>",
+      suffix = " <SUF>",
+    },
+    accept_keymap = "<Tab>",
+    dismiss_keymap = "<S-Tab>",
+    model = "codellama/CodeLlama-13b-hf",
+    context_window = 4096,
+    tokenizer = {
+      repository = "codellama/CodeLlama-13b-hf",
+    },
+    enable_suggestions_on_startup = false,
+  }
+}
+
